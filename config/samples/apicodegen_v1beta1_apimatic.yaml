@@ -1,0 +1,9 @@
+apiVersion: apicodegen.apimatic.io/v1beta1
+kind: APIMatic
+metadata:
+  name: apimatic-sample
+spec:
+  replicas: 2
+  podspec:
+    image: 'obaidkhattak/apimatic-codegen'
+    imagePullPolicy: 'IfNotPresent'
