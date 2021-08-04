@@ -44,8 +44,12 @@ spec:
                     description: APIMatic container image
                     type: string
                   imagePullPolicy:
-                    description: APIMatic container image pull policy. Valid values
-                      are Always, Never and IfNotPresent. Default is IfNotPresent
+                    description: PullPolicy describes a policy for if/when to pull
+                      a container image. Valid values are Always, Never and IfNotPresent
+                    enum:
+                    - Always
+                    - Never
+                    - IfNotPresent
                     type: string
                   initContainers:
                     description: 'More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/'
@@ -2266,8 +2270,10 @@ spec:
                       type: object
                     minItems: 1
                     type: array
+                    uniqueItems: true
                 required:
                 - image
+                - imagePullPolicy
                 type: object
               replicas:
                 description: replicas is the desired number of instances of APIMatic
@@ -2522,6 +2528,7 @@ spec:
                 type: array
             required:
             - podspec
+            - replicas
             type: object
           status:
             description: APIMaticStatus defines the observed state of APIMatic

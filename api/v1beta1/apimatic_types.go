@@ -30,10 +30,9 @@ type APIMaticSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// replicas is the desired number of instances of APIMatic
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:default:=1
-	// +kubebuilder:validation:Minimum:=0
-	Replicas int32 `json:"replicas,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=0
+	Replicas int32 `json:"replicas"`
 
 	// +kubebuilder:validation:Required
 	PodSpec APIMaticPodSpec `json:"podspec"`
@@ -64,20 +63,21 @@ type APIMaticPodSpec struct {
 	// +kubebuilder:validation:Required
 	Image string `json:"image"`
 
-	// APIMatic container image pull policy. Valid values are Always, Never and IfNotPresent. Default is IfNotPresent
-	// +kubebuilder:validation:optional
-	// +kubebuilder:validation:enum:=Always;Never;IfNotPresent
-	// +kubebuilder:validation:default:=IfNotPresent
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy,omitempty"`
+ // PullPolicy describes a policy for if/when to pull a container image. Valid values are Always, Never and IfNotPresent
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
+	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy"`
 
 	// sidecars are the collection of sidecar containers in addition to the main APIMatic container
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:MinItems:=1
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:UniqueItems=true
 	SideCars []corev1.Container `json:"sideCars,omitempty"`
 
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:MinItems:=1
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:UniqueItems=true
 	InitContainers []corev1.Container `json:"initContainers,omitempty"`
 }
 
