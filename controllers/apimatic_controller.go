@@ -197,6 +197,11 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 		},
 	}
 
+	if a.Spec.VolumeClaimTemplates != nil {
+		dep.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{}
+		dep.Spec.VolumeClaimTemplates = append(dep.Spec.VolumeClaimTemplates, a.Spec.VolumeClaimTemplates...)
+		}			
+		
 	if a.Spec.Resources != nil {
 		dep.Spec.Template.Spec.Containers[0].Resources = *a.Spec.Resources
 	}
