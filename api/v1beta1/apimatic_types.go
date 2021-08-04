@@ -37,8 +37,14 @@ type APIMaticSpec struct {
 	// +kubebuilder:validation:Required
 	PodSpec APIMaticPodSpec `json:"podspec"`
 
+	// +kubebuilder:validation:Required
+	PodVolumeSpec APIMaticPodVolumeSpec `json:"licensevolumespec"`
+
+	// +kubebuilder:validation:Required
+
+
 	// Resource Requirements represents the compute resource requirements of the APIMatic container
-	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 
 	// volumeClaimTemplates is a list of claims that pods are allowed to reference.
 	// The StatefulSet controller is responsible for mapping network identities to
@@ -63,22 +69,31 @@ type APIMaticPodSpec struct {
 	// +kubebuilder:validation:Required
 	Image string `json:"image"`
 
- // PullPolicy describes a policy for if/when to pull a container image. Valid values are Always, Never and IfNotPresent
+	// PullPolicy describes a policy for if/when to pull a container image. Valid values are Always, Never and IfNotPresent
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
-	ImagePullPolicy corev1.PullPolicy `json:"imagePullPolicy"`
+	ImagePullPolicy corev1.PullPolicy `json:"imagepullpolicy"`
 
 	// sidecars are the collection of sidecar containers in addition to the main APIMatic container
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:UniqueItems=true
-	SideCars []corev1.Container `json:"sideCars,omitempty"`
+	SideCars []corev1.Container `json:"sidecars,omitempty"`
 
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:UniqueItems=true
-	InitContainers []corev1.Container `json:"initContainers,omitempty"`
+	InitContainers []corev1.Container `json:"initcontainers,omitempty"`
+}
+
+type APIMaticPodVolumeSpec struct {
+	// The name of volume from where the APIMatic license file is to be retrieved
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	APIMaticLicenseVolumeName string `json:"licensevolumename"`
+
+	// The volume source from where the APIMatic license file is to be retrieved
+	// +kubebuilder:validation:Required
+	APIMaticLicenseVolumeSource corev1.VolumeSource `json:"licensevolumesource"`
 }
 
 //+kubebuilder:object:root=true

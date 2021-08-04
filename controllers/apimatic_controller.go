@@ -174,19 +174,40 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 						Image:           a.Spec.PodSpec.Image,
 						ImagePullPolicy: a.Spec.PodSpec.ImagePullPolicy,
 						Name:            "apimatic",
-						Resources:       a.Spec.Resources,
+						Env: []corev1.EnvVar{{
+							Name: "LICENSEPATH",
+							Value: "/usr/local/apimatic",
+						}},
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 8080,
 							Name:          "apimatic",
 						}},
+						VolumeMounts: []corev1.VolumeMount{{
+							ReadOnly: true,
+							MountPath: "/usr/local/apimatic",
+							Name: a.Spec.PodVolumeSpec.APIMaticLicenseVolumeName,
+						}},
+					}},
+					Volumes: []corev1.Volume{{
+						Name: a.Spec.PodVolumeSpec.APIMaticLicenseVolumeName,
+						VolumeSource: a.Spec.PodVolumeSpec.APIMaticLicenseVolumeSource,
 					}},
 				},
 			},
 		},
 	}
 
+	if a.Spec.Resources != nil {
+		dep.Spec.Template.Spec.Containers[0].Resources = *a.Spec.Resources
+	}
+
 	if a.Spec.PodSpec.SideCars != nil {
 		dep.Spec.Template.Spec.Containers = append(dep.Spec.Template.Spec.Containers, a.Spec.PodSpec.SideCars...)
+	}
+
+	if a.Spec.PodSpec.InitContainers != nil {
+		dep.Spec.Template.Spec.InitContainers = []corev1.Container{}
+		dep.Spec.Template.Spec.InitContainers = append(dep.Spec.Template.Spec.InitContainers, a.Spec.PodSpec.InitContainers...)
 	}
 	// Set APIMatic instance as owner and controller
 	ctrl.SetControllerReference(a, dep, r.Scheme)
