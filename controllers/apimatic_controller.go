@@ -19,6 +19,9 @@ package controllers
 import (
 	"context"
 
+	"reflect"
+
+	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -68,6 +71,12 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 		// Error reading the object - requeue the request
 		log.Error(err, "Failed to get APIMatic")
+		return ctrl.Result{}, err
+	}
+
+	// validates APIMatic instance, setting default values
+	err = r.validateAPIMatic(apimatic, &ctx, &log)
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -123,12 +132,68 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			}
 		}
 	*/
+
+	var foundServiceStatus = foundService.Status
+	var foundStatefulSetStatus = foundStatefulSet.Status
+
+	if !reflect.DeepEqual(foundServiceStatus, apimatic.Status.ServiceStatus) || !reflect.DeepEqual(foundStatefulSetStatus, apimatic.Status.StatefulSetStatus) {
+		apimatic.Status.ServiceStatus = foundServiceStatus
+		apimatic.Status.StatefulSetStatus = foundStatefulSetStatus
+
+		err = r.Status().Update(ctx, apimatic)
+		if err != nil {
+			log.Error(err, "Failed to update APIMatic status")
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
 func labelsForAPIMatic(name string) map[string]string {
 	return map[string]string{"app": "apimatic", "apimatic_cr": name}
 }
+
+
+func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, ctx *context.Context, logr *logr.Logger) error {
+
+	log := *logr
+	var needsUpdating bool = false
+
+		// Add default replica size of 1 if replicas field not set
+		if a.Spec.Replicas == nil {
+			a.Spec.Replicas = new(int32)
+			*a.Spec.Replicas = 1
+			needsUpdating = true
+		}
+		
+		// Add default license volume mounth path /usr/local/apimatic if not provided
+		if a.Spec.PodVolumeSpec.APIMaticLicensePath == nil {
+			a.Spec.PodVolumeSpec.APIMaticLicensePath = new(string)
+			*a.Spec.PodVolumeSpec.APIMaticLicensePath = "/usr/local/apimatic"
+			needsUpdating = true
+		}
+
+		// Add default container name of apimatic if container name not provided
+		if a.Spec.PodSpec.Name == nil {
+			a.Spec.PodSpec.Name = new(string)
+			*a.Spec.PodSpec.Name = "apimatic"
+			needsUpdating = true
+		}
+  
+		if needsUpdating {
+			log.Info("Updating APIMatic instance with default values", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
+	  err := r.Update(*ctx, a)
+		 if err != nil {
+			log.Error(err, "Failed to update APIMatic instance", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
+		} else {
+			log.Info("Successfully updated APIMatic", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
+		}
+		 return err
+		}
+		return nil
+	}
+
 
 func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *corev1.Service {
 	ls := labelsForAPIMatic(a.Name)
@@ -140,11 +205,76 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 		},
 		Spec: corev1.ServiceSpec{
 			Selector: ls,
-			Type:     corev1.ServiceTypeNodePort,
 			Ports: []corev1.ServicePort{{
-				Port: 80,
+				Port: a.Spec.ServiceSpec.APIMaticServicePort.Port,
 			}},
 		},
+	}
+
+	if a.Spec.ServiceSpec.Type != nil {
+		dep.Spec.Type = *a.Spec.ServiceSpec.Type
+	} else {
+		dep.Spec.Type = corev1.ServiceTypeClusterIP
+	}
+
+	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer || dep.Spec.Type == corev1.ServiceTypeNodePort {
+		if a.Spec.ServiceSpec.APIMaticServicePort.NodePort != nil {
+			dep.Spec.Ports[0].NodePort = *a.Spec.ServiceSpec.APIMaticServicePort.NodePort
+		}
+	}
+
+	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		if a.Spec.ServiceSpec.LoadBalancerIP != nil {
+			dep.Spec.LoadBalancerIP = *a.Spec.ServiceSpec.LoadBalancerIP
+		}
+	}
+
+	if a.Spec.ServiceSpec.SessionAffinity != nil {
+		dep.Spec.SessionAffinity = *a.Spec.ServiceSpec.SessionAffinity
+	} else {
+		dep.Spec.SessionAffinity = corev1.ServiceAffinityNone
+	}
+
+	if a.Spec.ServiceSpec.ExternalTrafficPolicy != nil {
+		dep.Spec.ExternalTrafficPolicy = *a.Spec.ServiceSpec.ExternalTrafficPolicy
+	}
+	
+	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer && dep.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal {
+		if a.Spec.ServiceSpec.HealthCheckNodePort != nil {
+			dep.Spec.HealthCheckNodePort = *a.Spec.ServiceSpec.HealthCheckNodePort
+		}
+	}
+
+	if a.Spec.ServiceSpec.PublishNotReadyAddresses != nil {
+		dep.Spec.PublishNotReadyAddresses = *a.Spec.ServiceSpec.PublishNotReadyAddresses
+	} else {
+		dep.Spec.PublishNotReadyAddresses = false
+	}
+
+	if a.Spec.ServiceSpec.SessionAffinityConfig != nil {
+		dep.Spec.SessionAffinityConfig = a.Spec.ServiceSpec.SessionAffinityConfig
+	}
+
+	if a.Spec.ServiceSpec.TopologyKeys != nil {
+		dep.Spec.TopologyKeys = []string{}
+		dep.Spec.TopologyKeys = append(dep.Spec.TopologyKeys, a.Spec.ServiceSpec.TopologyKeys...)
+	}
+
+	if a.Spec.ServiceSpec.IPFamilyPolicy != nil {
+		dep.Spec.IPFamilyPolicy = a.Spec.ServiceSpec.IPFamilyPolicy
+	} 
+
+	if (dep.Spec.Type == corev1.ServiceTypeClusterIP || dep.Spec.Type == corev1.ServiceTypeLoadBalancer || dep.Spec.Type == corev1.ServiceTypeNodePort) && (*dep.Spec.IPFamilyPolicy != corev1.IPFamilyPolicySingleStack) {
+		if a.Spec.ServiceSpec.IPFamilies != nil {
+			dep.Spec.IPFamilies = []corev1.IPFamily{}
+			dep.Spec.IPFamilies = append(dep.Spec.IPFamilies, a.Spec.ServiceSpec.IPFamilies...)
+		}
+	}
+
+	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		if a.Spec.ServiceSpec.AllocateLoadBalancerNodePorts != nil {
+			dep.Spec.AllocateLoadBalancerNodePorts = a.Spec.ServiceSpec.AllocateLoadBalancerNodePorts
+		}
 	}
 
 	// Set APIMatic instance as owner and controller
@@ -160,7 +290,7 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 			Namespace: a.Namespace,
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas: &a.Spec.Replicas,
+			Replicas: a.Spec.Replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: ls,
 			},
@@ -172,19 +302,17 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Image:           a.Spec.PodSpec.Image,
-						ImagePullPolicy: a.Spec.PodSpec.ImagePullPolicy,
-						Name:            "apimatic",
+						Name:            *a.Spec.PodSpec.Name,
 						Env: []corev1.EnvVar{{
 							Name: "LICENSEPATH",
-							Value: "/usr/local/apimatic",
+							Value: *a.Spec.PodVolumeSpec.APIMaticLicensePath,
 						}},
 						Ports: []corev1.ContainerPort{{
-							ContainerPort: 8080,
-							Name:          "apimatic",
+							ContainerPort: 80,
 						}},
 						VolumeMounts: []corev1.VolumeMount{{
 							ReadOnly: true,
-							MountPath: "/usr/local/apimatic",
+							MountPath: *a.Spec.PodVolumeSpec.APIMaticLicensePath,
 							Name: a.Spec.PodVolumeSpec.APIMaticLicenseVolumeName,
 						}},
 					}},
@@ -197,13 +325,19 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 		},
 	}
 
+	if a.Spec.PodSpec.ImagePullPolicy != nil {
+		dep.Spec.Template.Spec.Containers[0].ImagePullPolicy = *a.Spec.PodSpec.ImagePullPolicy
+	} else {
+		dep.Spec.Template.Spec.Containers[0].ImagePullPolicy = corev1.PullIfNotPresent
+	}
+
 	if a.Spec.VolumeClaimTemplates != nil {
 		dep.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{}
 		dep.Spec.VolumeClaimTemplates = append(dep.Spec.VolumeClaimTemplates, a.Spec.VolumeClaimTemplates...)
 		}			
 		
-	if a.Spec.Resources != nil {
-		dep.Spec.Template.Spec.Containers[0].Resources = *a.Spec.Resources
+	if a.Spec.PodSpec.Resources != nil {
+		dep.Spec.Template.Spec.Containers[0].Resources = *a.Spec.PodSpec.Resources
 	}
 
 	if a.Spec.PodSpec.SideCars != nil {
@@ -213,6 +347,10 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 	if a.Spec.PodSpec.InitContainers != nil {
 		dep.Spec.Template.Spec.InitContainers = []corev1.Container{}
 		dep.Spec.Template.Spec.InitContainers = append(dep.Spec.Template.Spec.InitContainers, a.Spec.PodSpec.InitContainers...)
+	}
+
+	if a.Spec.PodVolumeSpec.AdditionalVolumes != nil {
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, a.Spec.PodVolumeSpec.AdditionalVolumes...)
 	}
 	// Set APIMatic instance as owner and controller
 	ctrl.SetControllerReference(a, dep, r.Scheme)
