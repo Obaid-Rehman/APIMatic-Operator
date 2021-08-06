@@ -67,7 +67,6 @@ type APIMaticStatus struct {
 	// +kubebuilder:validation:Optional
 	// serviceStatus displays the status of the owned service resource which exposes the APIMatic pods for communication
 	ServiceStatus corev1.ServiceStatus `json:"serviceStatus,omitempty"`
-	
 }
 
 // APIMaticPodSpec contains configuration for created APIMatic pods
@@ -274,8 +273,8 @@ type APIMaticServiceSpec struct {
 	AllocateLoadBalancerNodePorts *bool `json:"allocateLoadBalancerNodePorts,omitempty"`
 
 	//APIMatic Service Port specifies how the APIMatic service is exposed within the pod
-	// +kubebuilder:validation:Optional
-	APIMaticServicePort *APIMaticServicePort `json:"apimaticserviceport,omitempty"`
+	// +kubebuilder:validation:Required
+	APIMaticServicePort *APIMaticServicePort `json:"apimaticserviceport"`
 
 	// Additional volumes if required in case of sidecar/init containers
 	// +kubebuilder:validation:Optional
@@ -318,7 +317,6 @@ type APIMaticServicePort struct {
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 }
-
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

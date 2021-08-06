@@ -2603,6 +2603,8 @@ spec:
                     maxItems: 16
                     minItems: 1
                     type: array
+                required:
+                - apimaticserviceport
                 type: object
               volumeClaimTemplates:
                 description: volumeClaimTemplates is a list of claims that pods are

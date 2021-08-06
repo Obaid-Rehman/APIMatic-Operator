@@ -6,4 +6,15 @@ spec:
   replicas: 2
   podspec:
     image: 'obaidkhattak/apimatic-codegen'
-    imagePullPolicy: 'IfNotPresent'
+  servicespec:
+    servicetype: 'NodePort'
+    apimaticserviceport: 
+      port: 8080
+  volumespec:
+    licensevolumename: 'licensevolume'
+    licensevolumesource:
+      configMap:
+        name: apimaticlicense
+         
+
+    
