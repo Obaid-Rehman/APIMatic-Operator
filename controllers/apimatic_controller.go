@@ -24,10 +24,12 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -75,9 +77,16 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// validates APIMatic instance, setting default values
-	err = r.validateAPIMatic(apimatic, &ctx, &log)
-	if err != nil {
-		return ctrl.Result{}, err
+	var needsUpdate bool= r.validateAPIMatic(apimatic, &log)
+	if needsUpdate {
+		log.Info("Updating APIMatic instance with default values", "APIMatic.Namespace", apimatic.Namespace, "APIMatic.Name", apimatic.Name)
+		err = r.Update(ctx, apimatic)
+		if err != nil {
+			log.Error(err, "Failed to update APIMatic instance with default values", "APIMatic.Namespace", apimatic.Namespace, "APIMatic.Name", apimatic.Name)
+			return ctrl.Result{}, err} else {
+				log.Info("Successfully updated APIMatic", "APIMatic.Namespace", apimatic.Namespace, "APIMatic.Name", apimatic.Name)
+				return ctrl.Result{Requeue: true}, nil
+			}
 	}
 
 	// Check if service already exists, if not create a new one
@@ -99,6 +108,20 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	// Check if service needs to be updated according to APIMatic Service specifications and then update if this is needed
+	foundService, needsUpdate = r.shouldUpdateServiceForAPIMatic(apimatic, foundService)
+	if needsUpdate {
+		log.Info("Updating service for APIMatic instance", "Service.Namespace", foundService.Namespace,"Service.Name",foundService.Name)
+		err = r.Update(ctx, foundService)
+		if err != nil {
+			log.Error(err, "Failure updating service for APIMatic instance", "Service.Namespace", foundService.Namespace,"Service.Name",foundService.Name)
+			return ctrl.Result{}, err
+		} else {
+			log.Info("Successfully updated service for APIMatic instance", "Service.Namespace", foundService.Namespace,"Service.Name",foundService.Name)
+			return ctrl.Result{Requeue: true}, nil
+		}
+	}
+
 	// Check if statefulset already exists, if not create a new one
 	foundStatefulSet := &appsv1.StatefulSet{}
 	err = r.Get(ctx, types.NamespacedName{Name: apimatic.Name, Namespace: apimatic.Namespace}, foundStatefulSet)
@@ -117,22 +140,22 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		log.Error(err, "Failed to get StatefulSet")
 		return ctrl.Result{}, err
 	}
-	/*
-		// Check for any changes in the apimatic spec
-		hasChanged := r.checkAndUpdateStatefulSet(apimatic, foundStatefulSet)
 
-		if hasChanged {
-			err = r.Update(ctx, foundStatefulSet)
-			if err != nil {
-				log.Error(err, "Failed to update stateful set", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
-				// Ask to requeue after 1 minute in order to give enough time for the
-			 // pods be created on the cluster side and the operand be able
-			 // to do the next update step accurately.
-				return ctrl.Result{RequeueAfter: time.Minute},nil
-			}
+	// Check if stateful set needs to be updated according to APIMatic spec and update if is needed
+	foundStatefulSet, needsUpdate = r.shouldUpdateStatefulSetForAPIMatic(apimatic, foundStatefulSet)
+	if needsUpdate {
+		log.Info("Updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace,"StatefulSet.Name",foundStatefulSet.Name)
+		err = r.Update(ctx, foundStatefulSet)
+		if err != nil {
+			log.Error(err, "Failure updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace,"StatefulSet.Name",foundStatefulSet.Name)
+			return ctrl.Result{}, err
+		} else {
+			log.Info("Successfully updated stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace,"StatefulSet.Name",foundStatefulSet.Name)
+			return ctrl.Result{Requeue: true}, nil
 		}
-	*/
+	}
 
+	
 	var foundServiceStatus = foundService.Status
 	var foundStatefulSetStatus = foundStatefulSet.Status
 
@@ -154,8 +177,7 @@ func labelsForAPIMatic(name string) map[string]string {
 	return map[string]string{"app": "apimatic", "apimatic_cr": name}
 }
 
-
-func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, ctx *context.Context, logr *logr.Logger) error {
+func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, logr *logr.Logger) bool {
 
 	log := *logr
 	var needsUpdating bool = false
@@ -163,6 +185,7 @@ func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, ctx
 		// Add default replica size of 1 if replicas field not set
 		if a.Spec.Replicas == nil {
 			a.Spec.Replicas = new(int32)
+			log.Info("Updating APIMatic Replicas defaulting to 1", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
 			*a.Spec.Replicas = 1
 			needsUpdating = true
 		}
@@ -170,6 +193,7 @@ func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, ctx
 		// Add default license volume mounth path /usr/local/apimatic if not provided
 		if a.Spec.PodVolumeSpec.APIMaticLicensePath == nil {
 			a.Spec.PodVolumeSpec.APIMaticLicensePath = new(string)
+			log.Info("Updating APIMatic license volume mount path defaulting to /usr/local/apimatic", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
 			*a.Spec.PodVolumeSpec.APIMaticLicensePath = "/usr/local/apimatic"
 			needsUpdating = true
 		}
@@ -177,23 +201,13 @@ func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, ctx
 		// Add default container name of apimatic if container name not provided
 		if a.Spec.PodSpec.Name == nil {
 			a.Spec.PodSpec.Name = new(string)
+			log.Info("Updating APIMatic container defaulting to apimatic", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
 			*a.Spec.PodSpec.Name = "apimatic"
 			needsUpdating = true
 		}
-  
-		if needsUpdating {
-			log.Info("Updating APIMatic instance with default values", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
-	  err := r.Update(*ctx, a)
-		 if err != nil {
-			log.Error(err, "Failed to update APIMatic instance", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
-		} else {
-			log.Info("Successfully updated APIMatic", "APIMatic.Namespace", a.Namespace, "APIMatic.Name", a.Name)
-		}
-		 return err
-		}
-		return nil
-	}
 
+	return needsUpdating
+}
 
 func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *corev1.Service {
 	ls := labelsForAPIMatic(a.Name)
@@ -207,8 +221,13 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 			Selector: ls,
 			Ports: []corev1.ServicePort{{
 				Port: a.Spec.ServiceSpec.APIMaticServicePort.Port,
+				TargetPort: intstr.FromInt(80),
 			}},
 		},
+	}
+
+	if a.Spec.ServiceSpec.APIMaticServicePort.Name != nil {
+		dep.Spec.Ports[0].Name = *a.Spec.ServiceSpec.APIMaticServicePort.Name
 	}
 
 	if a.Spec.ServiceSpec.Type != nil {
@@ -217,13 +236,13 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 		dep.Spec.Type = corev1.ServiceTypeClusterIP
 	}
 
-	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer || dep.Spec.Type == corev1.ServiceTypeNodePort {
+	if reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeLoadBalancer)  || reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeNodePort)  {
 		if a.Spec.ServiceSpec.APIMaticServicePort.NodePort != nil {
 			dep.Spec.Ports[0].NodePort = *a.Spec.ServiceSpec.APIMaticServicePort.NodePort
 		}
 	}
 
-	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer {
+	if reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeLoadBalancer)  {
 		if a.Spec.ServiceSpec.LoadBalancerIP != nil {
 			dep.Spec.LoadBalancerIP = *a.Spec.ServiceSpec.LoadBalancerIP
 		}
@@ -237,9 +256,11 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 
 	if a.Spec.ServiceSpec.ExternalTrafficPolicy != nil {
 		dep.Spec.ExternalTrafficPolicy = *a.Spec.ServiceSpec.ExternalTrafficPolicy
+	} else {
+		dep.Spec.ExternalTrafficPolicy = corev1.ServiceExternalTrafficPolicyTypeLocal
 	}
 	
-	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer && dep.Spec.ExternalTrafficPolicy == corev1.ServiceExternalTrafficPolicyTypeLocal {
+	if reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeLoadBalancer)  && reflect.DeepEqual(dep.Spec.ExternalTrafficPolicy, corev1.ServiceExternalTrafficPolicyTypeLocal)  {
 		if a.Spec.ServiceSpec.HealthCheckNodePort != nil {
 			dep.Spec.HealthCheckNodePort = *a.Spec.ServiceSpec.HealthCheckNodePort
 		}
@@ -262,24 +283,49 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 
 	if a.Spec.ServiceSpec.IPFamilyPolicy != nil {
 		dep.Spec.IPFamilyPolicy = a.Spec.ServiceSpec.IPFamilyPolicy
-	} 
+	} else {
+		dep.Spec.IPFamilyPolicy = new(corev1.IPFamilyPolicyType)
+		*dep.Spec.IPFamilyPolicy = corev1.IPFamilyPolicySingleStack 
+	}
 
-	if (dep.Spec.Type == corev1.ServiceTypeClusterIP || dep.Spec.Type == corev1.ServiceTypeLoadBalancer || dep.Spec.Type == corev1.ServiceTypeNodePort) && (*dep.Spec.IPFamilyPolicy != corev1.IPFamilyPolicySingleStack) {
+	if (reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeClusterIP) || reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeLoadBalancer) || reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeNodePort) ) && (!reflect.DeepEqual(*dep.Spec.IPFamilyPolicy, corev1.IPFamilyPolicySingleStack)) {
 		if a.Spec.ServiceSpec.IPFamilies != nil {
 			dep.Spec.IPFamilies = []corev1.IPFamily{}
 			dep.Spec.IPFamilies = append(dep.Spec.IPFamilies, a.Spec.ServiceSpec.IPFamilies...)
 		}
 	}
 
-	if dep.Spec.Type == corev1.ServiceTypeLoadBalancer {
+	if reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeLoadBalancer) {
 		if a.Spec.ServiceSpec.AllocateLoadBalancerNodePorts != nil {
 			dep.Spec.AllocateLoadBalancerNodePorts = a.Spec.ServiceSpec.AllocateLoadBalancerNodePorts
 		}
 	}
 
+	if reflect.DeepEqual(dep.Spec.Type, corev1.ServiceTypeExternalName) {
+		if a.Spec.ServiceSpec.ExternalName != nil {
+			dep.Spec.ExternalName = *a.Spec.ServiceSpec.ExternalName
+		}
+	}
+
+	if a.Spec.ServiceSpec.AdditionalServicePorts != nil {
+		dep.Spec.Ports = append(dep.Spec.Ports, a.Spec.ServiceSpec.AdditionalServicePorts...)
+	}
+
 	// Set APIMatic instance as owner and controller
 	ctrl.SetControllerReference(a, dep, r.Scheme)
 	return dep
+}
+
+func (r *APIMaticReconciler) shouldUpdateServiceForAPIMatic(a *apicodegenv1beta1.APIMatic, s *corev1.Service) (*corev1.Service, bool) {
+	needsUpdate := false
+	newService := r.serviceForAPIMatic(a)
+
+	if !equality.Semantic.DeepDerivative(newService.Spec, s.Spec) || !equality.Semantic.DeepDerivative(s.Spec, newService.Spec){
+		s.Spec = newService.Spec
+		needsUpdate = true
+	}
+
+	return s, needsUpdate
 }
 
 func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMatic) *appsv1.StatefulSet {
@@ -357,32 +403,18 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 	return dep
 }
 
-/*
-func (r *APIMaticReconciler) checkAndUpdateStatefulSet(a *apicodegenv1beta1.APIMatic, s *appsv1.StatefulSet) bool {
-	hasChanged := false
-	// Check for any changes in the apimatic spec
-	size := a.Spec.Replicas;
- if *s.Spec.Replicas != size {
-		s.Spec.Replicas = &size
-		hasChanged = true
+func (r *APIMaticReconciler) shouldUpdateStatefulSetForAPIMatic(a *apicodegenv1beta1.APIMatic, s *appsv1.StatefulSet) (*appsv1.StatefulSet, bool) {
+	needsUpdate:= false
+	var newStatefulSet *appsv1.StatefulSet = r.statefulSetForAPIMatic(a)
+
+	if !equality.Semantic.DeepDerivative(newStatefulSet.Spec, s.Spec) || !equality.Semantic.DeepDerivative(s.Spec, newStatefulSet.Spec){
+		s.Spec = newStatefulSet.Spec;
+		needsUpdate = true
 	}
 
-	if s.Spec.Template.Spec.Containers[0].Image != a.Spec.PodSpec.Image {
-		s.Spec.Template.Spec.Containers[0].Image = a.Spec.PodSpec.Image
-		hasChanged = true
-	}
-
-	if s.Spec.Template.Spec.Containers[0].ImagePullPolicy != a.Spec.PodSpec.ImagePullPolicy {
-		s.Spec.Template.Spec.Containers[0].ImagePullPolicy = a.Spec.PodSpec.ImagePullPolicy
-		hasChanged = true
-	}
-
-	// Check if no of sidecar containers in APIMatic pod has changed. This is one less than the total containers listed in the StatefulSet PodSpec field
-
-
-	return hasChanged
+	return s, needsUpdate
 }
-*/
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *APIMaticReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
