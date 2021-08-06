@@ -5780,6 +5780,7 @@ spec:
                 type: object
             required:
             - podspec
+            - servicespec
             - volumespec
             type: object
           status:

@@ -83,7 +83,8 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		err = r.Update(ctx, apimatic)
 		if err != nil {
 			log.Error(err, "Failed to update APIMatic instance with default values", "APIMatic.Namespace", apimatic.Namespace, "APIMatic.Name", apimatic.Name)
-			return ctrl.Result{}, err} else {
+			return ctrl.Result{}, err
+			} else {
 				log.Info("Successfully updated APIMatic", "APIMatic.Namespace", apimatic.Namespace, "APIMatic.Name", apimatic.Name)
 				return ctrl.Result{Requeue: true}, nil
 			}
@@ -106,7 +107,7 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	} else if err != nil {
 		log.Error(err, "Failed to get Service")
 		return ctrl.Result{}, err
-	}
+	} 
 
 	// Check if service needs to be updated according to APIMatic Service specifications and then update if this is needed
 	foundService, needsUpdate = r.shouldUpdateServiceForAPIMatic(apimatic, foundService)
@@ -368,6 +369,18 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 					}},
 				},
 			},
+		},
+	}
+
+	dep.Spec.Template.Spec.Affinity = &corev1.Affinity{
+		PodAntiAffinity: &corev1.PodAntiAffinity{
+			PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{{
+				PodAffinityTerm: corev1.PodAffinityTerm {
+					LabelSelector: &metav1.LabelSelector{
+						MatchLabels: ls,
+					},
+				},
+			}},
 		},
 	}
 

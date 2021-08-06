@@ -41,8 +41,8 @@ type APIMaticSpec struct {
 	// +kubebuilder:validation:Required
 	PodVolumeSpec APIMaticPodVolumeSpec `json:"volumespec"`
 
-	// +kubebuilder:validation:Optional
-	ServiceSpec APIMaticServiceSpec `json:"servicespec,omitempty"`
+	// +kubebuilder:validation:Required
+	ServiceSpec APIMaticServiceSpec `json:"servicespec"`
 
 	// volumeClaimTemplates is a list of claims that pods are allowed to reference.
 	// The StatefulSet controller is responsible for mapping network identities to
@@ -315,6 +315,7 @@ type APIMaticServicePort struct {
 	NodePort *int32 `json:"nodePort,omitempty"`
 
 	// The port that will be exposed by this service.
+	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
 }
 
