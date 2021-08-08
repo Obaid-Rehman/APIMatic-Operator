@@ -125,7 +125,7 @@ type APIMaticPodVolumeSpec struct {
 // APIMaticServiceSpec contains configuration for the service that exposes the APIMatic pods
 type APIMaticServiceSpec struct {
 
-	// Type string describes ingress methods for a service. Valid values are ClusterIP, NodePort, LoadBalancer, ExternalName. Defaults to ClusterIP
+	// Type string describes ingress methods for a service. Valid values are ClusterIP, NodePort, LoadBalancer, ExternalName, None. Defaults to ClusterIP
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=ClusterIP;NodePort;LoadBalancer;ExternalName
 	Type *corev1.ServiceType `json:"servicetype,omitempty"`
