@@ -21,10 +21,10 @@ import (
 
 	"reflect"
 
+	patch "github.com/banzaicloud/k8s-objectmatcher/patch"
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -96,14 +96,21 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new Service
 		dep := r.serviceForAPIMatic(apimatic)
+		if err = patch.DefaultAnnotator.SetLastAppliedAnnotation(dep); err != nil {
+			log.Error(err, "Error setting annotations on service", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+			return ctrl.Result{}, err
+		}
 		log.Info("Creating a new service", "Service.Namespace", dep.Namespace, "Service.Name", dep.Name)
+		ctrl.SetControllerReference(apimatic, dep, r.Scheme)
 		err = r.Create(ctx, dep)
-		if err != nil {
+		if err != nil && errors.IsAlreadyExists(err) {
+			log.Error(err, "Waiting to create new Service", "Service.Namespace", dep.Namespace, "Service.Name", dep.Name)
+			return ctrl.Result{Requeue: true}, nil
+		} else if err != nil {
 			log.Error(err, "Failed to create new Service", "Service.Namespace", dep.Namespace, "Service.Name", dep.Name)
 			return ctrl.Result{}, err
 		}
 		// Service created successfully- return and requeue
-		ctrl.SetControllerReference(apimatic, dep, r.Scheme)
 		log.Info("Successfully created new service", "Service.Namespace", dep.Namespace, "Service.Name", dep.Name)
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
@@ -112,16 +119,22 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Check if service needs to be updated according to APIMatic Service specifications and then update if this is needed
-	foundService, needsUpdate = r.shouldUpdateServiceForAPIMatic(apimatic, foundService)
-	if needsUpdate {
-		log.Info("Deleting outdated service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
-		err = r.Delete(ctx, foundService)
-		if err != nil {
-			log.Error(err, "Failure deleting outdated service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
-			return ctrl.Result{}, err
-		} else {
-			log.Info("Successfully deleted outdated service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
-			return ctrl.Result{Requeue: true}, nil
+	foundService, needsUpdate, err = r.shouldUpdateServiceForAPIMatic(apimatic, foundService)
+	if err != nil {
+		log.Error(err, "Error in checking if Service update needed", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+		return ctrl.Result{}, err
+	} else {
+		if needsUpdate {
+			log.Info("Deleting outdated service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+			ctrl.SetControllerReference(apimatic, foundService, r.Scheme)
+			err = r.Delete(ctx, foundService)
+			if err != nil {
+				log.Error(err, "Failure deleting outdated service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+				return ctrl.Result{}, err
+			} else {
+				log.Info("Successfully deleted service for APIMatic instance", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+				return ctrl.Result{Requeue: true}, nil
+			}
 		}
 	}
 
@@ -131,14 +144,19 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new StatefulSet
 		dep := r.statefulSetForAPIMatic(apimatic)
+		if err = patch.DefaultAnnotator.SetLastAppliedAnnotation(dep); err != nil {
+			log.Error(err, "Error setting annotations on service", "Service.Namespace", foundService.Namespace, "Service.Name", foundService.Name)
+			return ctrl.Result{}, err
+		}
 		log.Info("Creating a new StatefulSet", "StatefulSet.Namespace", dep.Namespace, "StatefulSet.Name", dep.Name)
+
+		ctrl.SetControllerReference(apimatic, dep, r.Scheme)
 		err = r.Create(ctx, dep)
 		if err != nil {
 			log.Error(err, "Failed to create new StatefulSet", "StatefulSet.Namespace", dep.Namespace, "StatefulSet.Name", dep.Name)
 			return ctrl.Result{}, err
 		}
 		// StatefulSet created successfuly- return and requeue
-		ctrl.SetControllerReference(apimatic, dep, r.Scheme)
 		log.Info("Successfully created new statefulset", "StatefulSet.Namespace", dep.Namespace, "StatefulSet.Name", dep.Name)
 		return ctrl.Result{Requeue: true}, nil
 	} else if err != nil {
@@ -147,16 +165,22 @@ func (r *APIMaticReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Check if stateful set needs to be updated according to APIMatic spec and update if is needed
-	foundStatefulSet, needsUpdate = r.shouldUpdateStatefulSetForAPIMatic(apimatic, foundStatefulSet)
-	if needsUpdate {
-		log.Info("Updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
-		err = r.Update(ctx, foundStatefulSet)
-		if err != nil {
-			log.Error(err, "Failure updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
-			return ctrl.Result{}, err
-		} else {
-			log.Info("Successfully updated stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
-			return ctrl.Result{Requeue: true}, nil
+	foundStatefulSet, needsUpdate, err = r.shouldUpdateStatefulSetForAPIMatic(apimatic, foundStatefulSet)
+	if err != nil {
+		log.Error(err, "Error in checking if StatefulSet update needed", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
+		return ctrl.Result{}, err
+	} else {
+		if needsUpdate {
+			log.Info("Updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
+			ctrl.SetControllerReference(apimatic, foundStatefulSet, r.Scheme)
+			err = r.Update(ctx, foundStatefulSet)
+			if err != nil {
+				log.Error(err, "Failure updating stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
+				return ctrl.Result{}, err
+			} else {
+				log.Info("Successfully updated stateful set for APIMatic instance", "StatefulSet.Namespace", foundStatefulSet.Namespace, "StatefulSet.Name", foundStatefulSet.Name)
+				return ctrl.Result{Requeue: true}, nil
+			}
 		}
 	}
 
@@ -320,16 +344,25 @@ func (r *APIMaticReconciler) serviceForAPIMatic(a *apicodegenv1beta1.APIMatic) *
 	return dep
 }
 
-func (r *APIMaticReconciler) shouldUpdateServiceForAPIMatic(a *apicodegenv1beta1.APIMatic, s *corev1.Service) (*corev1.Service, bool) {
-	needsUpdate := false
+func (r *APIMaticReconciler) shouldUpdateServiceForAPIMatic(a *apicodegenv1beta1.APIMatic, s *corev1.Service) (*corev1.Service, bool, error) {
 	newService := r.serviceForAPIMatic(a)
 
-	if !equality.Semantic.DeepDerivative(newService.Spec, s.Spec) {
-		s = newService.DeepCopy()
-		needsUpdate = true
+	opts := []patch.CalculateOption{
+		patch.IgnoreStatusFields(),
+	}
+	patchResult, err := patch.DefaultPatchMaker.Calculate(s, newService, opts...)
+	if err != nil {
+		return newService, false, err
 	}
 
-	return s, needsUpdate
+	if !patchResult.IsEmpty() {
+		if err := patch.DefaultAnnotator.SetLastAppliedAnnotation(newService); err != nil {
+			return newService, true, err
+		} else {
+			return newService, true, nil
+		}
+	}
+	return s, false, nil
 }
 
 func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMatic) *appsv1.StatefulSet {
@@ -420,16 +453,26 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 	return dep
 }
 
-func (r *APIMaticReconciler) shouldUpdateStatefulSetForAPIMatic(a *apicodegenv1beta1.APIMatic, s *appsv1.StatefulSet) (*appsv1.StatefulSet, bool) {
-	needsUpdate := false
-	var newStatefulSet *appsv1.StatefulSet = r.statefulSetForAPIMatic(a)
-
-	if !equality.Semantic.DeepDerivative(newStatefulSet.Spec, s.Spec) {
-		s = newStatefulSet.DeepCopy()
-		needsUpdate = true
+func (r *APIMaticReconciler) shouldUpdateStatefulSetForAPIMatic(a *apicodegenv1beta1.APIMatic, s *appsv1.StatefulSet) (*appsv1.StatefulSet, bool, error) {
+	newStatefulSet := r.statefulSetForAPIMatic(a)
+	opts := []patch.CalculateOption{
+		patch.IgnoreStatusFields(),
 	}
 
-	return s, needsUpdate
+	patchResult, err := patch.DefaultPatchMaker.Calculate(s, newStatefulSet, opts...)
+
+	if err != nil {
+		return newStatefulSet, false, err
+	}
+
+	if !patchResult.IsEmpty() {
+		if err := patch.DefaultAnnotator.SetLastAppliedAnnotation(newStatefulSet); err != nil {
+			return newStatefulSet, true, err
+		} else {
+			return newStatefulSet, true, nil
+		}
+	}
+	return s, false, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

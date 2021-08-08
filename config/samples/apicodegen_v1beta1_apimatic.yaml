@@ -3,7 +3,6 @@ kind: APIMatic
 metadata:
   name: apimatic-sample
 spec:
-  replicas: 2
   podspec:
     image: 'obaidkhattak/apimatic-codegen'
   servicespec:
