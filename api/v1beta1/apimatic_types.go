@@ -445,7 +445,7 @@ type APIMaticServiceSpec struct {
 	LoadBalancerIP *string `json:"loadBalancerIP,omitempty" protobuf:"bytes,8,opt,name=loadBalancerIP"`
 }
 
-// APIMaticServicePort configures the APIMatic container ports exposed by the service 
+// APIMaticServicePort configures the APIMatic container ports exposed by the service
 type APIMaticServicePort struct {
 	// The name of the APIMatic service port within the service. This must be a DNS_LABEL.
 	// All ports within a ServiceSpec must have unique names. When considering
@@ -506,6 +506,7 @@ type APIMaticPodPlacementSpec struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.statefulsetStatus.replicas
 
 // APIMatic is the Schema for the apimatics API
 type APIMatic struct {

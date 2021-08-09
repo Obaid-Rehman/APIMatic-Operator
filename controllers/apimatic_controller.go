@@ -46,6 +46,10 @@ type APIMaticReconciler struct {
 //+kubebuilder:rbac:groups=apicodegen.apimatic.io,resources=apimatics,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apicodegen.apimatic.io,resources=apimatics/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=apicodegen.apimatic.io,resources=apimatics/finalizers,verbs=update
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;watch;create;patch;delete
+//+kubebuilder:rbac:groups=core,resources=services/status,verbs=get
+//+kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;watch;create;update;patch
+//+kubebuilder:rback:groups=apps,resources=statefulsets/status,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -223,8 +227,6 @@ func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, log
 		*a.Spec.PodSpec.TerminationGracePeriodSeconds = 30
 		needsUpdating = true
 	}
-
-	
 
 	// Add default license volume mounth path /usr/local/apimatic if not provided
 	if a.Spec.PodVolumeSpec.APIMaticLicensePath == nil {
@@ -497,7 +499,7 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 	}
 
 	if a.Spec.PodSpec.SetHostnameAsFQDN != nil {
-		dep.Spec.Template.Spec.SetHostnameAsFQDN = a.Spec.PodSpec.SetHostnameAsFQDN 
+		dep.Spec.Template.Spec.SetHostnameAsFQDN = a.Spec.PodSpec.SetHostnameAsFQDN
 	} else {
 		dep.Spec.Template.Spec.SetHostnameAsFQDN = new(bool)
 		*dep.Spec.Template.Spec.SetHostnameAsFQDN = false
