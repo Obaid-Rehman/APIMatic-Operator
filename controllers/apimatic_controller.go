@@ -218,6 +218,14 @@ func (r *APIMaticReconciler) validateAPIMatic(a *apicodegenv1beta1.APIMatic, log
 		needsUpdating = true
 	}
 
+	if a.Spec.PodSpec.TerminationGracePeriodSeconds == nil {
+		a.Spec.PodSpec.TerminationGracePeriodSeconds = new(int64)
+		*a.Spec.PodSpec.TerminationGracePeriodSeconds = 30
+		needsUpdating = true
+	}
+
+	
+
 	// Add default license volume mounth path /usr/local/apimatic if not provided
 	if a.Spec.PodVolumeSpec.APIMaticLicensePath == nil {
 		a.Spec.PodVolumeSpec.APIMaticLicensePath = new(string)
@@ -383,6 +391,7 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 					Labels: ls,
 				},
 				Spec: corev1.PodSpec{
+					TerminationGracePeriodSeconds: a.Spec.PodSpec.TerminationGracePeriodSeconds,
 					Containers: []corev1.Container{{
 						Image: a.Spec.PodSpec.Image,
 						Name:  *a.Spec.PodSpec.Name,
@@ -422,6 +431,112 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 		},
 	}
 
+	if a.Spec.PodSpec.HostPID != nil {
+		dep.Spec.Template.Spec.HostPID = *a.Spec.PodSpec.HostPID
+	} else {
+		dep.Spec.Template.Spec.HostPID = false
+	}
+
+	if a.Spec.PodSpec.HostIPC != nil {
+		dep.Spec.Template.Spec.HostIPC = *a.Spec.PodSpec.HostIPC
+	} else {
+		dep.Spec.Template.Spec.HostIPC = false
+	}
+
+	if a.Spec.PodSpec.ShareProcessNamespace != nil {
+		dep.Spec.Template.Spec.ShareProcessNamespace = a.Spec.PodSpec.ShareProcessNamespace
+	} else {
+		dep.Spec.Template.Spec.ShareProcessNamespace = new(bool)
+		*dep.Spec.Template.Spec.ShareProcessNamespace = false
+	}
+
+	if a.Spec.PodSpec.SecurityContext != nil {
+		dep.Spec.Template.Spec.SecurityContext = a.Spec.PodSpec.SecurityContext
+	}
+
+	if a.Spec.PodSpec.ImagePullSecrets != nil {
+		dep.Spec.Template.Spec.ImagePullSecrets = []corev1.LocalObjectReference{}
+		dep.Spec.Template.Spec.ImagePullSecrets = append(dep.Spec.Template.Spec.ImagePullSecrets, a.Spec.PodSpec.ImagePullSecrets...)
+	}
+
+	if a.Spec.PodSpec.Hostname != nil {
+		dep.Spec.Template.Spec.Hostname = *a.Spec.PodSpec.Hostname
+	}
+
+	if a.Spec.PodSpec.Subdomain != nil {
+		dep.Spec.Template.Spec.Subdomain = *a.Spec.PodSpec.Subdomain
+	}
+
+	if a.Spec.PodSpec.SchedulerName != nil {
+		dep.Spec.Template.Spec.SchedulerName = *a.Spec.PodSpec.SchedulerName
+	}
+
+	if a.Spec.PodSpec.HostAliases != nil {
+		dep.Spec.Template.Spec.HostAliases = []corev1.HostAlias{}
+		dep.Spec.Template.Spec.HostAliases = append(dep.Spec.Template.Spec.HostAliases, a.Spec.PodSpec.HostAliases...)
+	}
+
+	if a.Spec.PodSpec.PriorityClassName != nil {
+		dep.Spec.Template.Spec.PriorityClassName = *a.Spec.PodSpec.PriorityClassName
+	}
+
+	if a.Spec.PodSpec.Priority != nil {
+		dep.Spec.Template.Spec.Priority = a.Spec.PodSpec.Priority
+	}
+
+	if a.Spec.PodSpec.ReadinessGates != nil {
+		dep.Spec.Template.Spec.ReadinessGates = []corev1.PodReadinessGate{}
+		dep.Spec.Template.Spec.ReadinessGates = append(dep.Spec.Template.Spec.ReadinessGates, a.Spec.PodSpec.ReadinessGates...)
+	}
+
+	if a.Spec.PodSpec.EnableServiceLinks != nil {
+		dep.Spec.Template.Spec.EnableServiceLinks = a.Spec.PodSpec.EnableServiceLinks
+	} else {
+		dep.Spec.Template.Spec.EnableServiceLinks = new(bool)
+		*dep.Spec.Template.Spec.EnableServiceLinks = true
+	}
+
+	if a.Spec.PodSpec.SetHostnameAsFQDN != nil {
+		dep.Spec.Template.Spec.SetHostnameAsFQDN = a.Spec.PodSpec.SetHostnameAsFQDN 
+	} else {
+		dep.Spec.Template.Spec.SetHostnameAsFQDN = new(bool)
+		*dep.Spec.Template.Spec.SetHostnameAsFQDN = false
+	}
+
+	if a.Spec.PodSpec.RestartPolicy != nil {
+		dep.Spec.Template.Spec.RestartPolicy = *a.Spec.PodSpec.RestartPolicy
+	} else {
+		dep.Spec.Template.Spec.RestartPolicy = corev1.RestartPolicyAlways
+	}
+
+	if a.Spec.PodSpec.ServiceAccountName != nil {
+		dep.Spec.Template.Spec.ServiceAccountName = *a.Spec.PodSpec.ServiceAccountName
+	}
+
+	if a.Spec.PodSpec.AutomountServiceAccountToken != nil {
+		dep.Spec.Template.Spec.AutomountServiceAccountToken = a.Spec.PodSpec.AutomountServiceAccountToken
+	}
+
+	if a.Spec.PodSpec.DNSPolicy != nil {
+		dep.Spec.Template.Spec.DNSPolicy = *a.Spec.PodSpec.DNSPolicy
+	} else {
+		dep.Spec.Template.Spec.DNSPolicy = corev1.DNSClusterFirst
+	}
+
+	if a.Spec.PodSpec.DNSConfig != nil {
+		dep.Spec.Template.Spec.DNSConfig = a.Spec.PodSpec.DNSConfig
+	}
+
+	if a.Spec.PodSpec.HostNetwork != nil {
+		dep.Spec.Template.Spec.HostNetwork = *a.Spec.PodSpec.HostNetwork
+	} else {
+		dep.Spec.Template.Spec.HostNetwork = false
+	}
+
+	if a.Spec.PodSpec.ActiveDeadlineSeconds != nil {
+		dep.Spec.Template.Spec.ActiveDeadlineSeconds = a.Spec.PodSpec.ActiveDeadlineSeconds
+	}
+
 	if a.Spec.PodSpec.ImagePullPolicy != nil {
 		dep.Spec.Template.Spec.Containers[0].ImagePullPolicy = *a.Spec.PodSpec.ImagePullPolicy
 	} else {
@@ -448,6 +563,25 @@ func (r *APIMaticReconciler) statefulSetForAPIMatic(a *apicodegenv1beta1.APIMati
 
 	if a.Spec.PodVolumeSpec.AdditionalVolumes != nil {
 		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, a.Spec.PodVolumeSpec.AdditionalVolumes...)
+	}
+
+	if a.Spec.APIMaticPodPlacementSpec != nil {
+		if a.Spec.APIMaticPodPlacementSpec.NodeAffinity != nil {
+			dep.Spec.Template.Spec.Affinity.NodeAffinity = a.Spec.APIMaticPodPlacementSpec.NodeAffinity
+		}
+
+		if a.Spec.APIMaticPodPlacementSpec.PodAffinity != nil {
+			dep.Spec.Template.Spec.Affinity.PodAffinity = a.Spec.APIMaticPodPlacementSpec.PodAffinity
+		}
+
+		if a.Spec.APIMaticPodPlacementSpec.NodeName != nil {
+			dep.Spec.Template.Spec.NodeName = *a.Spec.APIMaticPodPlacementSpec.NodeName
+		}
+
+		if a.Spec.APIMaticPodPlacementSpec.Tolerations != nil {
+			dep.Spec.Template.Spec.Tolerations = []corev1.Toleration{}
+			dep.Spec.Template.Spec.Tolerations = append(dep.Spec.Template.Spec.Tolerations, a.Spec.APIMaticPodPlacementSpec.Tolerations...)
+		}
 	}
 
 	return dep

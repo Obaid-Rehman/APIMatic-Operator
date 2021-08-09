@@ -44,6 +44,9 @@ type APIMaticSpec struct {
 	// +kubebuilder:validation:Required
 	ServiceSpec APIMaticServiceSpec `json:"servicespec"`
 
+	// +kubebuilder:validation:Optional
+	APIMaticPodPlacementSpec *APIMaticPodPlacementSpec `json:"podplacementspec,omitempty"`
+
 	// volumeClaimTemplates is a list of claims that pods are allowed to reference.
 	// The StatefulSet controller is responsible for mapping network identities to
 	// claims in a way that maintains the identity of a pod. Every claim in
@@ -98,8 +101,160 @@ type APIMaticPodSpec struct {
 	// Resource Requirements represents the compute resource requirements of the APIMatic container
 	// +kubebuilder:validation:Optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// Optional duration in seconds the pod needs to terminate gracefully. May be decreased in delete request.
+	// Value must be non-negative integer. The value zero indicates delete immediately.
+	// If this value is nil, the default grace period will be used instead.
+	// The grace period is the duration in seconds after the processes running in the pod are sent
+	// a termination signal and the time when the processes are forcibly halted with a kill signal.
+	// Set this value longer than the expected cleanup time for your process.
+	// Defaults to 30 seconds.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	TerminationGracePeriodSeconds *int64 `json:"terminationGracePeriodSeconds,omitempty"`
+
+	// Optional duration in seconds the pod may be active on the node relative to
+	// StartTime before the system will actively try to mark it failed and kill associated containers.
+	// Value must be a positive integer.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:ExclusiveMinimum=true
+	// +kubebuilder:validation:Minimum=0
+	ActiveDeadlineSeconds *int64 `json:"activeDeadlineSeconds,omitempty"`
+
+	// Set DNS policy for the pod.
+	// Defaults to "ClusterFirst".
+	// Valid values are 'ClusterFirstWithHostNet', 'ClusterFirst', 'Default' or 'None'.
+	// DNS parameters given in DNSConfig will be merged with the policy selected with DNSPolicy.
+	// To have DNS options set along with hostNetwork, you have to specify DNS policy
+	// explicitly to 'ClusterFirstWithHostNet'.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=ClusterFirstWithHostNet;ClusterFirst;Default;None
+	DNSPolicy *corev1.DNSPolicy `json:"dnsPolicy,omitempty"`
+
+	// Specifies the DNS parameters of a pod.
+	// Parameters specified here will be merged to the generated DNS
+	// configuration based on DNSPolicy.
+	// +kubebuilder:validation:Optional
+	DNSConfig *corev1.PodDNSConfig `json:"dnsConfig,omitempty"`
+
+	// Host networking requested for this pod. Use the host's network namespace.
+	// If this option is set, the ports that will be used must be specified.
+	// Default to false.
+	// +kubebuilder:validation:Optional
+	HostNetwork *bool `json:"hostNetwork,omitempty"`
+
+	// Restart policy for all containers within the pod.
+	// One of Always, OnFailure, Never.
+	// Default to Always.
+	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=Always;OnFailure;Never
+	RestartPolicy *corev1.RestartPolicy `json:"restartPolicy,omitempty"`
+
+	// ServiceAccountName is the name of the ServiceAccount to use to run this pod.
+	// More info: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
+
+	// AutomountServiceAccountToken indicates whether a service account token should be automatically mounted.
+	// +kubebuilder:validation:Optional
+	AutomountServiceAccountToken *bool `json:"automountServiceAccountToken,omitempty"`
+
+	// Use the host's pid namespace.
+	// Optional: Default to false.
+	// +kubebuilder:validation:Optional
+	HostPID *bool `json:"hostPID,omitempty"`
+
+	// Use the host's ipc namespace.
+	// Optional: Default to false.
+	// +kubebuilder:validation:Optional
+	HostIPC *bool `json:"hostIPC,omitempty"`
+
+	// Share a single process namespace between all of the containers in a pod.
+	// When this is set containers will be able to view and signal processes from other containers
+	// in the same pod, and the first process in each container will not be assigned PID 1.
+	// HostPID and ShareProcessNamespace cannot both be set.
+	// Optional: Default to false.
+	// +kubebuilder:validation:Optional
+	ShareProcessNamespace *bool `json:"shareProcessNamespace,omitempty"`
+
+	// SecurityContext holds pod-level security attributes and common container settings.
+	// Optional: Defaults to empty.  See type description for default values of each field.
+	// +kubebuilder:validation:Optional
+	SecurityContext *corev1.PodSecurityContext `json:"securityContext,omitempty"`
+
+	// ImagePullSecrets is an optional list of references to secrets in the same namespace to use for pulling any of the images used by this PodSpec.
+	// If specified, these secrets will be passed to individual puller implementations for them to use. For example,
+	// in the case of docker, only DockerConfig type secrets are honored.
+	// More info: https://kubernetes.io/docs/concepts/containers/images#specifying-imagepullsecrets-on-a-pod
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+
+	// Specifies the hostname of the Pod
+	// If not specified, the pod's hostname will be set to a system-defined value.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	Hostname *string `json:"hostname,omitempty"`
+
+	// If specified, the fully qualified Pod hostname will be "<hostname>.<subdomain>.<pod namespace>.svc.<cluster domain>".
+	// If not specified, the pod will not have a domainname at all.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	Subdomain *string `json:"subdomain,omitempty"`
+
+	// If specified, the pod will be dispatched by specified scheduler.
+	// If not specified, the pod will be dispatched by default scheduler.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	SchedulerName *string `json:"schedulerName,omitempty"`
+
+	// HostAliases is an optional list of hosts and IPs that will be injected into the pod's hosts
+	// file if specified. This is only valid for non-hostNetwork pods.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	HostAliases []corev1.HostAlias `json:"hostAliases,omitempty"`
+
+	// If specified, indicates the pod's priority. "system-node-critical" and
+	// "system-cluster-critical" are two special keywords which indicate the
+	// highest priorities with the former being the highest priority. Any other
+	// name must be defined by creating a PriorityClass object with that name.
+	// If not specified, the pod priority will be default or zero if there is no
+	// default.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	PriorityClassName *string `json:"priorityClassName,omitempty"`
+
+	// The priority value. Various system components use this field to find the
+	// priority of the pod. When Priority Admission Controller is enabled, it
+	// prevents users from setting this field. The admission controller populates
+	// this field from PriorityClassName.
+	// The higher the value, the higher the priority.
+	// +kubebuilder:validation:Optional
+	Priority *int32 `json:"priority,omitempty"`
+
+	// If specified, all readiness gates will be evaluated for pod readiness.
+	// A pod is ready when all its containers are ready AND
+	// all conditions specified in the readiness gates have status equal to "True"
+	// More info: https://git.k8s.io/enhancements/keps/sig-network/0007-pod-ready%2B%2B.md
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	ReadinessGates []corev1.PodReadinessGate `json:"readinessGates,omitempty"`
+
+	// EnableServiceLinks indicates whether information about services should be injected into pod's
+	// environment variables, matching the syntax of Docker links.
+	// Optional: Defaults to true.
+	// +kubebuilder:validation:Optional
+	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
+
+	// If a pod does not have FQDN, this has no effect.
+	// Default to false.
+	// +kubebuilder:validation:Optional
+	SetHostnameAsFQDN *bool `json:"setHostnameAsFQDN,omitempty"`
 }
 
+// APIMaticVolumeSpec contains configuration for volumes associated with created APIMatic pods
 type APIMaticPodVolumeSpec struct {
 
 	// The license path which will be used to volume mount the license file. If not provided, the license path is set as /usr/local/apimatic
@@ -290,6 +445,7 @@ type APIMaticServiceSpec struct {
 	LoadBalancerIP *string `json:"loadBalancerIP,omitempty" protobuf:"bytes,8,opt,name=loadBalancerIP"`
 }
 
+// APIMaticServicePort configures the APIMatic container ports exposed by the service 
 type APIMaticServicePort struct {
 	// The name of the APIMatic service port within the service. This must be a DNS_LABEL.
 	// All ports within a ServiceSpec must have unique names. When considering
@@ -316,6 +472,36 @@ type APIMaticServicePort struct {
 	// The port that will be exposed by this service.
 	// +kubebuilder:validation:Required
 	Port int32 `json:"port"`
+}
+
+// APIMaticPodPlacementSpec configures the APIMatic pod scheduling policy
+// +kubebuilder:validation:MinProperties=1
+type APIMaticPodPlacementSpec struct {
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinProperties=1
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// NodeName is a request to schedule this pod onto a specific node. If it is non-empty,
+	// the scheduler simply schedules this pod onto that node, assuming that it fits resource
+	// requirements.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinLength=1
+	NodeName *string `json:"nodeName,omitempty"`
+
+	// If specified, the pod's tolerations.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:MinItems=1
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty" protobuf:"bytes,22,opt,name=tolerations"`
+
+	// Describes node affinity scheduling rules for the pod.
+	// +kubebuilder:validation:Optional
+	NodeAffinity *corev1.NodeAffinity `json:"nodeAffinity,omitempty"`
+	// Describes pod affinity scheduling rules (e.g. co-locate this pod in the same node, zone, etc. as some other pod(s)).
+	// +kubebuilder:validation:Optional
+	PodAffinity *corev1.PodAffinity `json:"podAffinity,omitempty"`
 }
 
 //+kubebuilder:object:root=true
