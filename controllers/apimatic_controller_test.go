@@ -77,8 +77,8 @@ var _ = Describe("APIMatic Controller", func() {
 				return err == nil 
 			}, timeout, interval).Should(BeTrue())
 			Expect(createdAPIMaticCR.Spec.Replicas).Should(Equal(1))
-   Expect(createdAPIMaticCR.Spec.PodSpec.TerminationGracePeriodSeconds).Should(Equal(30))
-   Expect(createdAPIMaticCR.Spec.PodVolumeSpec.APIMaticLicensePath).Should(Equal("/usr/local/apimatic"))
+			Expect(createdAPIMaticCR.Spec.PodSpec.TerminationGracePeriodSeconds).Should(Equal(30))
+			Expect(createdAPIMaticCR.Spec.PodVolumeSpec.APIMaticLicensePath).Should(Equal("/usr/local/apimatic"))
 			Expect(createdAPIMaticCR.Spec.PodSpec.Name).Should(Equal("apimatic"))
 		})
 	})
