@@ -505,6 +505,7 @@ type APIMaticPodPlacementSpec struct {
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:shortName=apm
 //+kubebuilder:subresource:status
 //+kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.statefulsetStatus.replicas
 

@@ -13,6 +13,8 @@ spec:
     kind: APIMatic
     listKind: APIMaticList
     plural: apimatics
+    shortNames:
+    - apm
     singular: apimatic
   scope: Namespaced
   versions:
