@@ -31,29 +31,40 @@ import (
 
 var _ = Describe("APIMatic Controller", func() {
 	const (
-		APIMaticName = "test-apimatic"
+		APIMaticName      = "test-apimatic"
 		APIMaticNamespace = "default"
-  timeout = time.Second * 5
-		duration = time.Second * 5
-		interval = time.Millisecond * 250
+		timeout           = time.Second * 5
+		duration          = time.Second * 5
+		interval          = time.Millisecond * 250
+
+		ConfigMapName      = "test-apimatic-license-configmap"
+		ConfigMapNamespace = "default"
+
+		ServicePort        = 8080 
 	)
 
+
 	Context("When uploading APIMatic instance to k8s API server with minimal specifications", func() {
-		It("Should should set default values for replicas to 1, terminating grace period to 30s, apimatic license path default to /usr/local/apimatic, default apimatic container name to apimatic", func() {
+		It("Should be created successfully with default values for replicas to 1, terminating grace period to 30s, apimatic license path default to /usr/local/apimatic, default apimatic container name to apimatic", func() {
 			By("Creating a new APIMatic instance with minimal specifications")
 			ctx := context.Background()
 			apimatic := &apicodegenv1beta1.APIMatic{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: "apicodegen.apimatic.io/v1beta1",
-					Kind: "APIMatic",
+					Kind:       "APIMatic",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: APIMaticName,
+					Name:      APIMaticName,
 					Namespace: APIMaticNamespace,
 				},
 				Spec: apicodegenv1beta1.APIMaticSpec{
 					PodSpec: apicodegenv1beta1.APIMaticPodSpec{
 						Image: "obaidkhattak/apimatic-codegen",
+					},
+					ServiceSpec: apicodegenv1beta1.APIMaticServiceSpec{
+						APIMaticServicePort: &apicodegenv1beta1.APIMaticServicePort{
+							Port: 8080,
+						},
 					},
 					PodVolumeSpec: apicodegenv1beta1.APIMaticPodVolumeSpec{
 						APIMaticLicenseVolumeName: "licensevolume",
@@ -74,7 +85,7 @@ var _ = Describe("APIMatic Controller", func() {
 
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, apimaticLookupKey, createdAPIMaticCR)
-				return err == nil 
+				return err == nil
 			}, timeout, interval).Should(BeTrue())
 			Expect(createdAPIMaticCR.Spec.Replicas).Should(Equal(1))
 			Expect(createdAPIMaticCR.Spec.PodSpec.TerminationGracePeriodSeconds).Should(Equal(30))
@@ -83,4 +94,3 @@ var _ = Describe("APIMatic Controller", func() {
 		})
 	})
 })
-

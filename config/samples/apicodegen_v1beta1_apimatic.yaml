@@ -8,6 +8,7 @@ spec:
   servicespec:
     servicetype: 'NodePort'
     apimaticserviceport: 
+      nodePort: 32000
       port: 8080
   volumespec:
     licensevolumename: 'licensevolume'
